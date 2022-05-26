@@ -8,14 +8,14 @@ import java.net.Socket;
 import java.util.HashMap;
 
 import ro.pub.cs.systems.eim.practicaltest02.general.Constants;
-import ro.pub.cs.systems.eim.practicaltest02.model.WeatherForecastInformation;
+import ro.pub.cs.systems.eim.practicaltest02.model.Capsule;
 
 public class ServerThread extends Thread {
 
     private int port;
     private ServerSocket serverSocket = null;
 
-    private HashMap<String, WeatherForecastInformation> data;
+    private HashMap<String, Capsule> data;
 
     public ServerThread(int port) {
         this.port = port;
@@ -30,27 +30,19 @@ public class ServerThread extends Thread {
         this.data = new HashMap<>();
     }
 
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setServerSocket(ServerSocket serverSocket) {
-        this.serverSocket = serverSocket;
-    }
 
     public ServerSocket getServerSocket() {
         return serverSocket;
     }
 
-    public synchronized void setData(String city, WeatherForecastInformation weatherForecastInformation) {
-        this.data.put(city, weatherForecastInformation);
+    public synchronized void setData(String key, Capsule capsule) {
+        this.data.put(key, capsule);
+    }
+    public synchronized String getData(String key) {
+        return this.data.get(key).getValue();
     }
 
-    public synchronized HashMap<String, WeatherForecastInformation> getData() {
+    public synchronized HashMap<String, Capsule> getData() {
         return data;
     }
 

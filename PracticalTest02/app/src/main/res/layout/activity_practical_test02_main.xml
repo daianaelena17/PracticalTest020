@@ -101,7 +101,7 @@
         android:columnCount="3">
 
         <EditText
-            android:id="@+id/city_edit_text"
+            android:id="@+id/key"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:ems="5"
@@ -143,7 +143,7 @@
         android:layout_height="match_parent">
 
         <TextView
-            android:id="@+id/weather_forecast_text_view"
+            android:id="@+id/result"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:maxLines="10"/>

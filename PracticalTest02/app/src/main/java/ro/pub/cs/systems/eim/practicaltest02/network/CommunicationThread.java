@@ -1,5 +1,7 @@
 package ro.pub.cs.systems.eim.practicaltest02.network;
 
+import android.os.Build;
+import android.support.annotation.RequiresApi;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -13,10 +15,15 @@ import org.jsoup.select.Elements;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Logger;
 
 import cz.msebera.android.httpclient.HttpEntity;
 import cz.msebera.android.httpclient.HttpResponse;
@@ -33,7 +40,7 @@ import cz.msebera.android.httpclient.protocol.HTTP;
 import cz.msebera.android.httpclient.util.EntityUtils;
 import ro.pub.cs.systems.eim.practicaltest02.general.Constants;
 import ro.pub.cs.systems.eim.practicaltest02.general.Utilities;
-import ro.pub.cs.systems.eim.practicaltest02.model.WeatherForecastInformation;
+import ro.pub.cs.systems.eim.practicaltest02.model.Capsule;
 
 public class CommunicationThread extends Thread {
 
@@ -45,6 +52,7 @@ public class CommunicationThread extends Thread {
         this.socket = socket;
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     public void run() {
         if (socket == null) {
@@ -56,26 +64,28 @@ public class CommunicationThread extends Thread {
             PrintWriter printWriter = Utilities.getWriter(socket);
 
             Log.i(Constants.TAG, "[COMMUNICATION THREAD] Waiting for parameters from client (city / information type!");
-            String city = bufferedReader.readLine();
+            String key = bufferedReader.readLine();
+            String value = bufferedReader.readLine();
             String informationType = bufferedReader.readLine();
 
-            if (city == null || city.isEmpty() || informationType == null || informationType.isEmpty()) {
+            if (key == null || key.isEmpty() || informationType == null || informationType.isEmpty()
+            || (informationType.equals("put") && value.equals(""))) {
                 Log.e(Constants.TAG, "[COMMUNICATION THREAD] Error receiving parameters from client (city / information type!");
                 return;
             }
 
-            HashMap<String, WeatherForecastInformation> data = serverThread.getData();
-            WeatherForecastInformation weatherForecastInformation;
-            if (data.containsKey(city)) {
+            HashMap<String, Capsule> data = serverThread.getData();
+            Capsule capsule = null;
+            if (informationType.equals("get") && data.containsKey(key)) {
                 Log.i(Constants.TAG, "[COMMUNICATION THREAD] Getting the information from the cache...");
-                weatherForecastInformation = data.get(city);
-            } else {
+                capsule = data.get(key);
+            } else if (informationType.equals("put")) {
                 Log.i(Constants.TAG, "[COMMUNICATION THREAD] Getting the information from the webservice...");
                 HttpClient httpClient = new DefaultHttpClient();
                 String pageSourceCode = "";
 
                 // request http
-                HttpGet httpGet = new HttpGet(Constants.WEB_SERVICE_ADDRESS + "?q=" + city + "&APPID=" + Constants.WEB_SERVICE_API_KEY + "&units=" + Constants.UNITS);
+                HttpGet httpGet = new HttpGet("https://worldtimeapi.org/api/ip");
                 HttpResponse httpGetResponse = httpClient.execute(httpGet);
                 HttpEntity httpGetEntity = httpGetResponse.getEntity();
                 if (httpGetEntity != null) {
@@ -89,57 +99,24 @@ public class CommunicationThread extends Thread {
                     Log.i(Constants.TAG, pageSourceCode);
 
                 JSONObject content = new JSONObject(pageSourceCode);
-
-                JSONArray weatherArray = content.getJSONArray(Constants.WEATHER);
-                JSONObject weather;
-                String condition = "";
-                for (int i = 0; i < weatherArray.length(); i++) {
-                    weather = weatherArray.getJSONObject(i);
-                    condition += weather.getString(Constants.MAIN) + " : " + weather.getString(Constants.DESCRIPTION);
-
-                    if (i < weatherArray.length() - 1) {
-                        condition += ";";
-                    }
-                }
-
-                JSONObject main = content.getJSONObject(Constants.MAIN);
-                String temperature = main.getString(Constants.TEMP);
-                String pressure = main.getString(Constants.PRESSURE);
-                String humidity = main.getString(Constants.HUMIDITY);
-
-                JSONObject wind = content.getJSONObject(Constants.WIND);
-                String windSpeed = wind.getString(Constants.SPEED);
-
-                weatherForecastInformation = new WeatherForecastInformation(
-                        temperature, windSpeed, condition, pressure, humidity
-                );
-                serverThread.setData(city, weatherForecastInformation);
+                System.out.println(content.getString("utc_datetime"));
+                capsule = new Capsule(value, content.getString("utc_datetime"));
+                serverThread.setData(key, capsule);
             }
 
-            if (weatherForecastInformation == null) {
-                Log.e(Constants.TAG, "[COMMUNICATION THREAD] Weather Forecast Information is null!");
-                return;
-            }
             String result;
 
             switch (informationType) {
-                case Constants.ALL:
-                    result = weatherForecastInformation.toString();
+                case Constants.GET:
+//                    capsule = new Capsule("ceva", "acum");
+                    if (!serverThread.getData().containsKey(key)) {
+                        result = "no such data";
+                    } else
+                    result = capsule.getValue();
                     break;
-                case Constants.TEMPERATURE:
-                    result = weatherForecastInformation.getTemperature();
-                    break;
-                case Constants.WIND_SPEED:
-                    result = weatherForecastInformation.getWindSpeed();
-                    break;
-                case Constants.CONDITION:
-                    result = weatherForecastInformation.getCondition();
-                    break;
-                case Constants.HUMIDITY:
-                    result = weatherForecastInformation.getHumidity();
-                    break;
-                case Constants.PRESSURE:
-                    result = weatherForecastInformation.getPressure();
+                case Constants.PUT:
+                    serverThread.setData(key, new Capsule(value, new Date(System.currentTimeMillis()).toString()));
+                    result = "OK";
                     break;
                 default:
                     result = "[COMMUNICATION THREAD] Wrong information type (all / temperature / wind_speed / condition / humidity / pressure)!";
